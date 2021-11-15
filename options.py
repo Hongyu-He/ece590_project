@@ -28,10 +28,10 @@ def args_parser():
 
     # model arguments
     parser.add_argument('--model', type=str, 
-                        default="/home/hh239/ece590/ece590_projects/PyTorch-YOLOv3/config/yolov3.cfg", 
+                        default="/home/hh239/ece590/ece590_projects/YOLOv3/config/yolov3.cfg", 
                         help="Path to model definition file (.cfg)")
     parser.add_argument("--pretrained_weights", type=str, 
-                        default="/home/hh239/ece590/ece590_projects/PyTorch-YOLOv3/weights/yolov3.weights",
+                        default="/home/hh239/ece590/ece590_projects/YOLOv3/weights/yolov3.weights",
                         help="Path to checkpoint file (.weights or .pth). Starts training from checkpoint model")
     parser.add_argument('--kernel_num', type=int, default=9,
                         help='number of each kind of kernel')

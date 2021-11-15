@@ -66,7 +66,7 @@ def dataset_generator(server_num, batch_size, n_cpu=8, multiscale_training=False
     Returns:
         [type]: [description]
     """
-    dataDir = '/home/hh239/ece590/codes/PyTorch-YOLOv3/data/coco'
+    dataDir = '/home/hh239/ece590/codes/YOLOv3/data/coco'
     dataset = mode + '2014'
     annFile='{}/annotations/instances_{}.json'.format(dataDir,dataset)
     classes_names = ['car', 'bicycle', 'person', 'motorcycle', 'bus', 'truck']

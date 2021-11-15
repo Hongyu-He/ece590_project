@@ -1,3 +1,4 @@
 __pycache__
-PyTorch-YOLOv3/weights
-PyTorch-YOLOv3/data
+YOLOv3/weights
+YOLOv3/data
+YOLOv3/config
