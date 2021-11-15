@@ -1,6 +1,6 @@
 # ECE590 Project
 
-This is the repository for ECE590 project: 
+This is the repository for ECE590 project: Federated Learning for Object Detection.
 
 
 ## Authors
