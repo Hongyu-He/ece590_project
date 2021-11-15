@@ -1,7 +1,11 @@
 import torch
 from torch import nn
+from tqdm import tqdm
+import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from pytorchyolo.utils.loss import compute_loss
+from pytorchyolo.utils.utils import to_cpu
+from terminaltables import AsciiTable
 
 
 class DatasetSplit(Dataset):
@@ -21,14 +25,12 @@ class DatasetSplit(Dataset):
 
 
 class LocalUpdate(object):
-    def __init__(self, args, dataset, idxs, logger):
+    def __init__(self, args, trainloader, testloader, idx):
         self.args = args
-        self.logger = logger
-        self.trainloader, self.validloader, self.testloader = self.train_val_test(
-            dataset, list(idxs))
+        self.idx = idx  # client index
+        self.trainloader = trainloader
+        self.testloader = testloader
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # Default criterion set to NLL loss function
-        self.criterion = nn.NLLLoss().to(self.device)
 
     def train_val_test(self, dataset, idxs):
         """
@@ -48,40 +50,79 @@ class LocalUpdate(object):
                                 batch_size=int(len(idxs_test)/10), shuffle=False)
         return trainloader, validloader, testloader
 
-    def update_weights(self, model, global_round):
+    def update_weights(self, model):
         # Set mode to train model
         model.train()
-        epoch_loss = []
+        epoch_loss = []  # average loss for each epoch
+        print(f"\n---- Training Client Model {self.idx} ----")
 
         # Set optimizer for the local updates
-        if self.args.optimizer == 'sgd':
-            optimizer = torch.optim.SGD(model.parameters(), lr=self.args.lr,
-                                        momentum=0.5)
-        elif self.args.optimizer == 'adam':
-            optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
-                                         weight_decay=1e-4)
+        params = [p for p in model.parameters() if p.requires_grad]
+
+        if (model.hyperparams['optimizer'] in [None, "adam"]):
+            optimizer = optim.Adam(
+                params,
+                lr=model.hyperparams['learning_rate'],
+                weight_decay=model.hyperparams['decay'],
+            )
+        elif (model.hyperparams['optimizer'] == "sgd"):
+            optimizer = optim.SGD(
+                params,
+                lr=model.hyperparams['learning_rate'],
+                weight_decay=model.hyperparams['decay'],
+                momentum=model.hyperparams['momentum'])
+        else:
+            print("Unknown optimizer. Please choose between (adam, sgd).")    
 
         for iter in range(self.args.local_ep):
-            batch_loss = []
-            for batch_idx, (images, labels) in enumerate(self.trainloader):
-                images, labels = images.to(self.device), labels.to(self.device)
+            batch_loss = []  # average loss for each batch
+            for batch_i, (_, imgs, targets) in enumerate(tqdm(self.trainloader, 
+                                                desc=f"Training Epoch {iter}/{self.args.local_ep}")):
+                batches_done = len(self.trainloader) * iter + batch_i
 
-                model.zero_grad()
-                log_probs = model(images)
-                # loss = self.criterion(log_probs, labels)
+                imgs = imgs.to(self.device, non_blocking=True)
+                targets = targets.to(self.device)
+
+                outputs = model(imgs)
+
                 loss, loss_components = compute_loss(outputs, targets, model)
                 loss.backward()
-                optimizer.step()
 
-                if self.args.verbose and (batch_idx % 10 == 0):
-                    print('| Global Round : {} | Local Epoch : {} | [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        global_round, iter, batch_idx * len(images),
-                        len(self.trainloader.dataset),
-                        100. * batch_idx / len(self.trainloader), loss.item()))
-                self.logger.add_scalar('loss', loss.item())
-                batch_loss.append(loss.item())
+                # Run optimizer
+                if batches_done % model.hyperparams['subdivisions'] == 0:
+                    # Adapt learning rate
+                    # Get learning rate defined in cfg
+                    lr = model.hyperparams['learning_rate']
+                    if batches_done < model.hyperparams['burn_in']:
+                        # Burn in
+                        lr *= (batches_done / model.hyperparams['burn_in'])
+                    else:
+                        # Set and parse the learning rate to the steps defined in the cfg
+                        for threshold, value in model.hyperparams['lr_steps']:
+                            if batches_done > threshold:
+                                lr *= value
+                    
+                    # Set learning rate
+                    for g in optimizer.param_groups:
+                        g['lr'] = lr
+
+                    # Run optimizer
+                    optimizer.step()
+                    # Reset gradients
+                    optimizer.zero_grad() 
+
+                if self.args.verbose:
+                    print(AsciiTable(
+                        [
+                            ["Type", "Value"],
+                            ["IoU loss", float(loss_components[0])],
+                            ["Object loss", float(loss_components[1])],
+                            ["Class loss", float(loss_components[2])],
+                            ["Loss", float(loss_components[3])],
+                            ["Batch loss", to_cpu(loss).item()],
+                        ]).table)
+                batch_loss.append(to_cpu(loss).item())
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
-
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss)
 
     def inference(self, model):

@@ -1,4 +1,5 @@
 import copy
+from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -66,8 +67,10 @@ def dataset_generator(server_num, batch_size, n_cpu=8, multiscale_training=False
     Returns:
         [type]: [description]
     """
-    dataDir = '/home/hh239/ece590/codes/YOLOv3/data/coco'
+    dataDir = '/home/hh239/ece590/ece590_project/YOLOv3/data/coco'
     dataset = mode + '2014'
+    prefix = '/home/hh239/ece590/ece590_project/data_pointer/'
+    Path(prefix).mkdir(parents=True, exist_ok=True)
     annFile='{}/annotations/instances_{}.json'.format(dataDir,dataset)
     classes_names = ['car', 'bicycle', 'person', 'motorcycle', 'bus', 'truck']
     coco = COCO(annFile)
@@ -78,7 +81,7 @@ def dataset_generator(server_num, batch_size, n_cpu=8, multiscale_training=False
     if iid is True:
         text = dict()
         for i_s in range(server_num):
-            file_out = dataset + 'server' + '_' + str(i_s) + '_' + '.txt'
+            file_out = prefix + dataset + 'server' + '_' + str(i_s) + '_' + '.txt'
             f = open(file_out, 'a')
             for cls in classes_names:
                 #Get ID number of this class
@@ -91,7 +94,7 @@ def dataset_generator(server_num, batch_size, n_cpu=8, multiscale_training=False
                 for imgId in tqdm(img_ids_):
                     img = coco.loadImgs(imgId)[0]
                     filename = img['file_name']
-                    string = './images/'+dataset+'/'+filename
+                    string = dataDir + '/images/' + dataset + '/' + filename
                     #print(string)
                     f.write(string)
                     f.write('\n')
@@ -99,7 +102,7 @@ def dataset_generator(server_num, batch_size, n_cpu=8, multiscale_training=False
             f = open(file_out, "r")
             
             
-            writeDir = "./new_" + dataset + 'server' + '_' + str(i_s) + '_' + ".txt"
+            writeDir = prefix + "new_" + dataset + 'server' + '_' + str(i_s) + '_' + ".txt"
             outfile=open(writeDir,"w")
             lines_seen = set()  # Build an unordered collection of unique elements.
  
@@ -126,40 +129,40 @@ def dataset_generator(server_num, batch_size, n_cpu=8, multiscale_training=False
         return dataloader_ser, dataset_ser
 
 
-def get_dataset(dataset, num_users, iid=True):
-    """Returns train and test datasets and a user group which is a dict where
-    the keys are the user index and the values are the corresponding data for
-    each of those users.
+# def get_dataset(dataset, num_users, iid=True):
+#     """Returns train and test datasets and a user group which is a dict where
+#     the keys are the user index and the values are the corresponding data for
+#     each of those users.
 
-    Args:
-        dataset ([type]): [description]
-        num_users ([type]): [description]
-        iid (bool, optional): [description]. Defaults to True.
+#     Args:
+#         dataset ([type]): [description]
+#         num_users ([type]): [description]
+#         iid (bool, optional): [description]. Defaults to True.
 
-    Returns:
-        [type]: [description]
-    """
-    data_dir = '../data/chest_xray/'
-    # TODO try other transformers, use different transformer for train/test/val
-    apply_transform = transforms.Compose(
-        [transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+#     Returns:
+#         [type]: [description]
+#     """
+#     data_dir = '../data/chest_xray/'
+#     # TODO try other transformers, use different transformer for train/test/val
+#     apply_transform = transforms.Compose(
+#         [transforms.ToTensor(),
+#             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    trainset = ImageFolder(root=data_dir+'train', transform=apply_transform)
-    testset = ImageFolder(root=data_dir+'test', transform=apply_transform)
-    valset = ImageFolder(root=data_dir+'val', transform=apply_transform)
+#     trainset = ImageFolder(root=data_dir+'train', transform=apply_transform)
+#     testset = ImageFolder(root=data_dir+'test', transform=apply_transform)
+#     valset = ImageFolder(root=data_dir+'val', transform=apply_transform)
 
-    # sample training data amongst users
-    if iid:
-        # Sample IID user data
-        user_groups = sample_iid(trainset, num_users)
-    else:
-        # TODO Sample Non-IID user data
-        # user_groups = sample_noniid(trainset, num_users)
-        user_groups = {}
-        raise NotImplementedError("Can't sample Non-IID user data")
+#     # sample training data amongst users
+#     if iid:
+#         # Sample IID user data
+#         user_groups = sample_iid(trainset, num_users)
+#     else:
+#         # TODO Sample Non-IID user data
+#         # user_groups = sample_noniid(trainset, num_users)
+#         user_groups = {}
+#         raise NotImplementedError("Can't sample Non-IID user data")
 
-    return trainset, testset, valset, user_groups
+#     return trainset, testset, valset, user_groups
 
 
 def sample_imgs(dataset, num, plot=True):

@@ -61,10 +61,9 @@ if __name__ == '__main__':
         idxs_users = np.random.choice(range(args.num_users), m, replace=False)
 
         for idx in idxs_users:
-            local_model = LocalUpdate(args=args, dataset=train_dataset,
-                                      idxs=user_groups[idx], logger=logger)
-            w, loss = local_model.update_weights(
-                model=copy.deepcopy(global_model), global_round=epoch)
+            local_model = LocalUpdate(args=args, trainloader=train_loader[idx],
+                                      testloader=test_loader[idx], idx=idx)
+            w, loss = local_model.update_weights(model=copy.deepcopy(global_model))
             local_weights.append(copy.deepcopy(w))
             local_losses.append(copy.deepcopy(loss))
 
@@ -78,38 +77,38 @@ if __name__ == '__main__':
         train_loss.append(loss_avg)
 
         # Calculate avg training accuracy over all users at every epoch
-        list_acc, list_loss = [], []
-        global_model.eval()
-        for c in range(args.num_users):
-            local_model = LocalUpdate(args=args, dataset=train_dataset,
-                                      idxs=user_groups[idx], logger=logger)
-            acc, loss = local_model.inference(model=global_model)
-            list_acc.append(acc)
-            list_loss.append(loss)
-        train_accuracy.append(sum(list_acc)/len(list_acc))
+        # list_acc, list_loss = [], []
+        # global_model.eval()
+        # for c in range(args.num_users):
+        #     local_model = LocalUpdate(args=args, dataset=train_dataset,
+        #                               idxs=user_groups[idx], logger=logger)
+        #     acc, loss = local_model.inference(model=global_model)
+        #     list_acc.append(acc)
+        #     list_loss.append(loss)
+        # train_accuracy.append(sum(list_acc)/len(list_acc))
 
         # print global training loss after every 'i' rounds
-        if (epoch+1) % print_every == 0:
-            print(f' \nAvg Training Stats after {epoch+1} global rounds:')
-            print(f'Training Loss : {np.mean(np.array(train_loss))}')
-            print('Train Accuracy: {:.2f}% \n'.format(100*train_accuracy[-1]))
+        # if (epoch+1) % print_every == 0:
+        #     print(f' \nAvg Training Stats after {epoch+1} global rounds:')
+        #     print(f'Training Loss : {np.mean(np.array(train_loss))}')
+        #     print('Train Accuracy: {:.2f}% \n'.format(100*train_accuracy[-1]))
 
     # Test inference after completion of training
-    test_acc, test_loss = test_inference(args, global_model, test_dataset)
+    # test_acc, test_loss = test_inference(args, global_model, test_dataset)
 
-    print(f' \n Results after {args.epochs} global rounds of training:')
-    print("|---- Avg Train Accuracy: {:.2f}%".format(100*train_accuracy[-1]))
-    print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
+    # print(f' \n Results after {args.epochs} global rounds of training:')
+    # print("|---- Avg Train Accuracy: {:.2f}%".format(100*train_accuracy[-1]))
+    # print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
 
-    # Saving the objects train_loss and train_accuracy:
-    file_name = '../save/objects/{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}].pkl'.\
-        format(args.dataset, args.model, args.epochs, args.frac, args.iid,
-               args.local_ep, args.local_bs)
+    # # Saving the objects train_loss and train_accuracy:
+    # file_name = '../save/objects/{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}].pkl'.\
+    #     format(args.dataset, args.model, args.epochs, args.frac, args.iid,
+    #            args.local_ep, args.local_bs)
 
-    with open(file_name, 'wb') as f:
-        pickle.dump([train_loss, train_accuracy], f)
+    # with open(file_name, 'wb') as f:
+    #     pickle.dump([train_loss, train_accuracy], f)
 
-    print('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))
+    # print('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))
 
     # PLOTTING (optional)
     # import matplotlib
