@@ -1,0 +1,4 @@
+pytest
+pytest-pycodestyle
+numpy
+pandas
