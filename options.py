@@ -11,13 +11,13 @@ def args_parser():
     # federated arguments (Notation for the arguments followed from paper)
     parser.add_argument('--epochs', type=int, default=10,
                         help="number of rounds of training")
-    parser.add_argument('--num_users', type=int, default=10,
+    parser.add_argument('--num_users', type=int, default=5,
                         help="number of users: K")
     parser.add_argument('--batch_size', type=int, default=32,
                         help="batch size of local model")
     parser.add_argument('--frac', type=float, default=1,
                         help='the fraction of clients: C')
-    parser.add_argument('--local_ep', type=int, default=10,
+    parser.add_argument('--local_ep', type=int, default=1,
                         help="the number of local epochs: E")
     parser.add_argument('--local_bs', type=int, default=32,
                         help="local batch size: B")
@@ -33,6 +33,10 @@ def args_parser():
     parser.add_argument("--pretrained_weights", type=str, 
                         default="/home/hh239/ece590/ece590_project/YOLOv3/weights/yolov3.weights",
                         help="Path to checkpoint file (.weights or .pth). Starts training from checkpoint model")
+    parser.add_argument("--iou_thres", type=float, default=0.5, help="Evaluation: IOU threshold required to qualify as detected")
+    parser.add_argument("--conf_thres", type=float, default=0.1, help="Evaluation: Object confidence threshold")
+    parser.add_argument("--nms_thres", type=float, default=0.5, help="Evaluation: IOU threshold for non-maximum suppression")
+    
     parser.add_argument('--kernel_num', type=int, default=9,
                         help='number of each kind of kernel')
     parser.add_argument('--kernel_sizes', type=str, default='3,4,5',

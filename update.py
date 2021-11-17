@@ -1,11 +1,14 @@
 import torch
 from torch import nn
 from tqdm import tqdm
+import numpy as np
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from pytorchyolo.utils.loss import compute_loss
 from pytorchyolo.utils.utils import to_cpu
+from pytorchyolo.test import _evaluate
 from terminaltables import AsciiTable
+from beautifultable import BeautifulTable
 
 
 class DatasetSplit(Dataset):
@@ -32,25 +35,7 @@ class LocalUpdate(object):
         self.testloader = testloader
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    def train_val_test(self, dataset, idxs):
-        """
-        Returns train, validation and test dataloaders for a given dataset
-        and user indexes.
-        """
-        # split indexes for train, validation, and test (80, 10, 10)
-        idxs_train = idxs[:int(0.8*len(idxs))]
-        idxs_val = idxs[int(0.8*len(idxs)):int(0.9*len(idxs))]
-        idxs_test = idxs[int(0.9*len(idxs)):]
-
-        trainloader = DataLoader(DatasetSplit(dataset, idxs_train),
-                                 batch_size=self.args.local_bs, shuffle=True)
-        validloader = DataLoader(DatasetSplit(dataset, idxs_val),
-                                 batch_size=int(len(idxs_val)/10), shuffle=False)
-        testloader = DataLoader(DatasetSplit(dataset, idxs_test),
-                                batch_size=int(len(idxs_test)/10), shuffle=False)
-        return trainloader, validloader, testloader
-
-    def update_weights(self, model):
+    def update_weights(self, model, eval=True):
         # Set mode to train model
         model.train()
         epoch_loss = []  # average loss for each epoch
@@ -111,19 +96,51 @@ class LocalUpdate(object):
                     # Reset gradients
                     optimizer.zero_grad() 
 
-                if self.args.verbose:
-                    print(AsciiTable(
-                        [
-                            ["Type", "Value"],
-                            ["IoU loss", float(loss_components[0])],
-                            ["Object loss", float(loss_components[1])],
-                            ["Class loss", float(loss_components[2])],
-                            ["Loss", float(loss_components[3])],
-                            ["Batch loss", to_cpu(loss).item()],
-                        ]).table)
+                # if self.args.verbose:
+                #     print(AsciiTable(
+                #         [
+                #             ["Type", "Value"],
+                #             ["IoU loss", float(loss_components[0])],
+                #             ["Object loss", float(loss_components[1])],
+                #             ["Class loss", float(loss_components[2])],
+                #             ["Loss", float(loss_components[3])],
+                #             ["Batch loss", to_cpu(loss).item()],
+                #         ]).table)
                 batch_loss.append(to_cpu(loss).item())
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
-        return model.state_dict(), sum(epoch_loss) / len(epoch_loss)
+        
+        # evaluate local model
+        print(f"\n---- Evaluating Local Model {self.idx} ----")
+        name_file = open("/home/hh239/ece590/ece590_project/YOLOv3/data/coco.names", 'r')
+        class_names = name_file.read().split('\n').remove('')
+        name_file.close()
+        metrics_output = _evaluate(
+            model,
+            self.testloader,
+            class_names,
+            img_size=model.hyperparams['height'],
+            iou_thres=self.args.iou_thres,
+            conf_thres=self.args.conf_thres,
+            nms_thres=self.args.nms_thres,
+            verbose=self.args.verbose
+        )
+        if metrics_output is not None:
+            print(f"\n---- Evaluating Matrics ----\n")
+            precision, recall, AP, f1, ap_class = metrics_output
+            evaluation_metrics = {
+                "precision": precision.mean(),
+                "recall": recall.mean(),
+                "mAP": AP.mean(),
+                "f1": f1.mean()}
+            eval_table = BeautifulTable()
+            eval_table.rows.append(["precision", precision.mean()])
+            eval_table.rows.append(["recall", recall.mean()])
+            eval_table.rows.append(["mAP", AP.mean()])
+            eval_table.rows.append(["f1", f1.mean()])
+            print(eval_table)
+
+        # local model weights and average epoch loss are returned
+        return model.state_dict(), sum(epoch_loss) / len(epoch_loss), evaluation_metrics
 
     def inference(self, model):
         """ Returns the inference accuracy and loss.

@@ -11,6 +11,8 @@ from options import args_parser
 from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import dataset_generator, average_weights, exp_details
+from pytorchyolo.test import _evaluate
+from beautifultable import BeautifulTable
 
 
 if __name__ == '__main__':
@@ -47,51 +49,65 @@ if __name__ == '__main__':
 
     # Training
     train_loss, train_accuracy = [], []
-    val_acc_list, net_list = [], []
-    cv_loss, cv_acc = [], []
     print_every = 2
-    val_loss_pre, counter = 0, 0
 
+    matric_local = {}
     for epoch in tqdm(range(args.epochs)):
         local_weights, local_losses = [], []
+        matric_local[epoch] = {}
         print(f'\n | Global Training Round : {epoch+1} |\n')
 
         global_model.train()
+        # pick up clients that participate in this round 
         m = max(int(args.frac * args.num_users), 1)
         idxs_users = np.random.choice(range(args.num_users), m, replace=False)
 
         for idx in idxs_users:
             local_model = LocalUpdate(args=args, trainloader=train_loader[idx],
                                       testloader=test_loader[idx], idx=idx)
-            w, loss = local_model.update_weights(model=copy.deepcopy(global_model))
+            # train local models for local_ep epochs
+            w, loss, local_eval = local_model.update_weights(model=copy.deepcopy(global_model))
+            matric_local[epoch][idx] = local_eval
             local_weights.append(copy.deepcopy(w))
             local_losses.append(copy.deepcopy(loss))
 
         # update global weights
         global_weights = average_weights(local_weights)
-
-        # update global weights
         global_model.load_state_dict(global_weights)
 
         loss_avg = sum(local_losses) / len(local_losses)
         train_loss.append(loss_avg)
 
-        # Calculate avg training accuracy over all users at every epoch
-        # list_acc, list_loss = [], []
-        # global_model.eval()
-        # for c in range(args.num_users):
-        #     local_model = LocalUpdate(args=args, dataset=train_dataset,
-        #                               idxs=user_groups[idx], logger=logger)
-        #     acc, loss = local_model.inference(model=global_model)
-        #     list_acc.append(acc)
-        #     list_loss.append(loss)
-        # train_accuracy.append(sum(list_acc)/len(list_acc))
-
-        # print global training loss after every 'i' rounds
-        # if (epoch+1) % print_every == 0:
-        #     print(f' \nAvg Training Stats after {epoch+1} global rounds:')
-        #     print(f'Training Loss : {np.mean(np.array(train_loss))}')
-        #     print('Train Accuracy: {:.2f}% \n'.format(100*train_accuracy[-1]))
+        # evaluate global model
+        for i in test_loader:
+            print(f"\n---- Evaluating Global Model ----\n")
+            name_file = open("/home/hh239/ece590/ece590_project/YOLOv3/data/coco.names", 'r')
+            class_names = name_file.read().split('\n').remove('')
+            name_file.close()
+            metrics_output = _evaluate(
+                global_model,
+                test_loader[i],
+                class_names,
+                img_size=global_model.hyperparams['height'],
+                iou_thres=args.iou_thres,
+                conf_thres=args.conf_thres,
+                nms_thres=args.nms_thres,
+                verbose=args.verbose
+            )
+            if metrics_output is not None:
+                print(f"\n---- Evaluating Matrics on testset {i} ----\n")
+                precision, recall, AP, f1, ap_class = metrics_output
+                evaluation_metrics = {
+                    "precision": precision.mean(),
+                    "recall": recall.mean(),
+                    "mAP": AP.mean(),
+                    "f1": f1.mean()}
+                eval_table = BeautifulTable()
+                eval_table.rows.append(["precision", precision.mean()])
+                eval_table.rows.append(["recall", recall.mean()])
+                eval_table.rows.append(["mAP", AP.mean()])
+                eval_table.rows.append(["f1", f1.mean()])
+                print(eval_table)
 
     # Test inference after completion of training
     # test_acc, test_loss = test_inference(args, global_model, test_dataset)
