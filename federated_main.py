@@ -4,6 +4,7 @@ import time
 import pickle
 import numpy as np
 from tqdm import tqdm
+from pathlib import Path
 
 import torch
 from pytorchyolo.models import load_model
@@ -13,6 +14,7 @@ from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import dataset_generator, average_weights, exp_details
 from pytorchyolo.test import _evaluate
 from beautifultable import BeautifulTable
+import pickle
 
 
 if __name__ == '__main__':
@@ -51,10 +53,13 @@ if __name__ == '__main__':
     train_loss, train_accuracy = [], []
     print_every = 2
 
-    matric_local = {}
+    metric_local = {}
+    metric_global = {}
+    weights_local_record = {}
     for epoch in tqdm(range(args.epochs)):
         local_weights, local_losses = [], []
-        matric_local[epoch] = {}
+        metric_local[epoch] = {}
+        weights_local_record[epoch] = {}
         print(f'\n | Global Training Round : {epoch+1} |\n')
 
         global_model.train()
@@ -67,7 +72,8 @@ if __name__ == '__main__':
                                       testloader=test_loader[idx], idx=idx)
             # train local models for local_ep epochs
             w, loss, local_eval = local_model.update_weights(model=copy.deepcopy(global_model))
-            matric_local[epoch][idx] = local_eval
+            metric_local[epoch][idx] = local_eval
+            weights_local_record[epoch][idx] = copy.deepcopy(w)
             local_weights.append(copy.deepcopy(w))
             local_losses.append(copy.deepcopy(loss))
 
@@ -79,6 +85,7 @@ if __name__ == '__main__':
         train_loss.append(loss_avg)
 
         # evaluate global model
+        metric_global[epoch] = {}
         for i in test_loader:
             print(f"\n---- Evaluating Global Model ----\n")
             name_file = open("/home/hh239/ece590/ece590_project/YOLOv3/data/coco.names", 'r')
@@ -94,6 +101,7 @@ if __name__ == '__main__':
                 nms_thres=args.nms_thres,
                 verbose=args.verbose
             )
+            metric_global[epoch][i] = metrics_output
             if metrics_output is not None:
                 print(f"\n---- Evaluating Matrics on testset {i} ----\n")
                 precision, recall, AP, f1, ap_class = metrics_output
@@ -108,6 +116,18 @@ if __name__ == '__main__':
                 eval_table.rows.append(["mAP", AP.mean()])
                 eval_table.rows.append(["f1", f1.mean()])
                 print(eval_table)
+    
+    results_path = "/home/hh239/ece590/ece590_project/results"
+    Path(results_path).mkdir(parents=True, exist_ok=True)
+    ckp_path = results_path + '/checkpoints'
+    Path(ckp_path).mkdir(parents=True, exist_ok=True)
+    torch.save(global_model.state_dict(), ckp_path+'/ckp')
+    with open(results_path+'/metric_local.pkl', 'wb') as f:
+        pickle.dump(metric_local)
+    with open(results_path+'/metric_global.pkl', 'wb') as f:
+        pickle.dump(metric_global)
+    with open(results_path+'/weights_local.pkl', 'wb') as f:
+        pickle.dump(weights_local_record)
 
     # Test inference after completion of training
     # test_acc, test_loss = test_inference(args, global_model, test_dataset)
