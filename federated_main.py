@@ -117,7 +117,7 @@ if __name__ == '__main__':
                 eval_table.rows.append(["f1", f1.mean()])
                 print(eval_table)
     
-    results_path = "/home/hh239/ece590/ece590_project/results"
+    results_path = "/home/hh239/ece590/ece590_project/results/local_ep_2"
     Path(results_path).mkdir(parents=True, exist_ok=True)
     ckp_path = results_path + '/checkpoints'
     Path(ckp_path).mkdir(parents=True, exist_ok=True)
