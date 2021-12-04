@@ -28,10 +28,10 @@ def args_parser():
 
     # model arguments
     parser.add_argument('--model', type=str, 
-                        default="/home/hh239/ece590/ece590_project/YOLOv3/config/yolov3.cfg", 
+                        default="/home/hh239/ece590/ece590_project/YOLOv3/config/yolov3-tiny.cfg", 
                         help="Path to model definition file (.cfg)")
     parser.add_argument("--pretrained_weights", type=str, 
-                        default="/home/hh239/ece590/ece590_project/YOLOv3/weights/yolov3.weights",
+                        default="/home/hh239/ece590/ece590_project/YOLOv3/weights/yolov3-tiny.weights",
                         help="Path to checkpoint file (.weights or .pth). Starts training from checkpoint model")
     parser.add_argument("--iou_thres", type=float, default=0.5, help="Evaluation: IOU threshold required to qualify as detected")
     parser.add_argument("--conf_thres", type=float, default=0.1, help="Evaluation: Object confidence threshold")
